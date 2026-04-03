@@ -43,27 +43,58 @@ class Trader:
         unrealized_pnl = position * price
         return realized_pnl + unrealized_pnl
 
-    def _get_data(self, product, state: TradingState):
-        avg_price = HIST_DATA[product]["HIST_AVG_TRADE_PRICE"]
-        std_price = HIST_DATA[product]["HIST_STD_TRADE_PRICE"]
-        order_depth = state.order_depths[product]
-        position = state.position[product]
-        own_trades = state.own_trades[product]
-        market_trades = state.market_trades[product]
-        timestamp = state.timestamp[product]
-        return avg_price, std_price, order_depth, position, own_trades, market_trades, timestamp
+    # def _get_data(self, product, state: TradingState):
+    #     avg_price = HIST_DATA[product]["HIST_AVG_TRADE_PRICE"]
+    #     std_price = HIST_DATA[product]["HIST_STD_TRADE_PRICE"]
+    #     order_depth = state.order_depths[product]
+    #     position = state.position[product]
+    #     own_trades = state.own_trades[product]
+    #     market_trades = state.market_trades[product]
+    #     timestamp = state.timestamp[product]
+    #     return avg_price, std_price, order_depth, position, own_trades, market_trades, timestamp
     
     def _t_strategy(self, product, state):
         # avg_price, _, order_depth, position, own_trades, market_trades, timestamp = self._get_data(product, state)
-        pass
-
-    def _e_strategy(self, product, state):
-        # avg_price, _, order_depth, position, own_trades, market_trades, timestamp = self._get_data(product, state)
         orders: list[Trade] = []
+        return orders
 
-        # Market-making:
-        orders.append(Order(product, 9998, 5)) # Bid
-        orders.append(Order(product, 10001, 5)) # Ask
+    def _e_strategy(self, product, state: TradingState):
+        order_depth = state.order_depths[product]
+        orders: list[Trade] = []
+        sells = order_depth.sell_orders
+        buys = order_depth.buy_orders
+
+        best_bid = max(buys.keys())
+        best_ask = min(sells.keys())
+        mid_price = (best_bid + best_ask) / 2
+        
+        fair_price = mid_price
+        print(fair_price)
+
+        try:
+            own_trades = state.own_trades[product]
+            position = state.position[product]
+            pnl = self._calc_pnl(own_trades, position, fair_price)
+            print(f"PnL: {pnl}")
+        except: 
+            print("There are no past trades yet")
+
+
+        if len(sells) != 0:
+            for sell in sells.items():
+                (price, qty) = sell
+                print(f"Sell price: {price} - quantity: {qty}")
+                if price < fair_price:
+                    print("BUY", str(qty) + "x", price)
+                    orders.append(Order(product, price, -qty))
+        
+        if len(buys) != 0:
+            for buy in buys.items():
+                (price, qty) = buy
+                print(f"Buy price: {price} - quantity: {qty}")
+                if price > fair_price:
+                    print("SELL", str(qty) + "x", price)
+                    orders.append(Order(product, price, -qty))
 
         return orders
 
@@ -73,59 +104,61 @@ class Trader:
         symbols as an input, and outputs a list of orders to be sent."""
         # Orders to be placed on exchange matching engine
         result = {}
-        for product in state.order_depths:
-            print(f"----------------------- {product} -----------------------")
-            # order_depth: OrderDepth = state.order_depths[product]
-            # orders: List[Order] = []
-            # position = state.position[product]
+        orders_e = self._e_strategy("EMERALDS", state)
+        orders_t = self._t_strategy("TOMATOES", state)
 
-            # avg_price = HIST_DATA[product]["HIST_AVG_TRADE_PRICE"]
-            # std_price = HIST_DATA[product]["HIST_STD_TRADE_PRICE"]
+        # order_depth: OrderDepth = state.order_depths[product]
+        # orders: List[Order] = []
+        # position = state.position[product]
 
-            # if len(order_depth.sell_orders) != 0:
-            #     best_ask = min(list(order_depth.sell_orders.keys()))
-            # else:
-            #     best_ask = 0
-    
-            # if len(order_depth.buy_orders) != 0:
-            #     best_bid = max(list(order_depth.buy_orders.keys()))
-            # else:
-            #     best_bid = 0
+        # avg_price = HIST_DATA[product]["HIST_AVG_TRADE_PRICE"]
+        # std_price = HIST_DATA[product]["HIST_STD_TRADE_PRICE"]
 
-            # spread = best_ask - best_bid
-            # mid_price = (best_bid + best_ask) / 2
+        # if len(order_depth.sell_orders) != 0:
+        #     best_ask = min(list(order_depth.sell_orders.keys()))
+        # else:
+        #     best_ask = 0
 
-            # buy_volume = sum(order_depth.buy_orders.values())
-            # sell_volume = -sum(order_depth.sell_orders.values())
-            # market_pressure = (buy_volume - sell_volume) / (buy_volume + sell_volume)
+        # if len(order_depth.buy_orders) != 0:
+        #     best_bid = max(list(order_depth.buy_orders.keys()))
+        # else:
+        #     best_bid = 0
 
-            # std_avg_ratio = std_price/avg_price
-            # weight = self.scaled_sigmoid(2*std_avg_ratio, 1-std_avg_ratio, market_pressure) # No lo usamos ahora
+        # spread = best_ask - best_bid
+        # mid_price = (best_bid + best_ask) / 2
 
-            # acceptable_price = 10
-            # pnl = self._calc_pnl(state.own_trades[product], position, acceptable_price)
-            # print(pnl)
+        # buy_volume = sum(order_depth.buy_orders.values())
+        # sell_volume = -sum(order_depth.sell_orders.values())
+        # market_pressure = (buy_volume - sell_volume) / (buy_volume + sell_volume)
 
-            # print(f"Mid price: {mid_price}")
-            # print(f"Std price: {std_price}")
-            # print(f"Market pressure: {market_pressure}")
-            # print(f"Weight: {weight}")
-            # print("Acceptable price : " + str(acceptable_price))
-            # print("Buy Order depth : " + str(len(order_depth.buy_orders)) + ", Sell order depth : " + str(len(order_depth.sell_orders)))
+        # std_avg_ratio = std_price/avg_price
+        # weight = self.scaled_sigmoid(2*std_avg_ratio, 1-std_avg_ratio, market_pressure) # No lo usamos ahora
 
-            # if len(order_depth.sell_orders) != 0:
-            #     best_ask_amount = order_depth.sell_orders[min(list(order_depth.sell_orders.keys()))]
-            #     if int(best_ask) < acceptable_price:
-            #         print("BUY", str(-best_ask_amount) + "x", best_ask)
-            #         orders.append(Order(product, best_ask, -best_ask_amount))
-    
-            # if len(order_depth.buy_orders) != 0:
-            #     best_bid_amount = order_depth.buy_orders[max(list(order_depth.buy_orders.keys()))]
-            #     if int(best_bid) > acceptable_price:
-            #         print("SELL", str(best_bid_amount) + "x", best_bid)
-            #         orders.append(Order(product, best_bid, -best_bid_amount))
-            orders = self._e_strategy(product, state)
-            result[product] = orders
+        # acceptable_price = 10
+        # pnl = self._calc_pnl(state.own_trades[product], position, acceptable_price)
+        # print(pnl)
+
+        # print(f"Mid price: {mid_price}")
+        # print(f"Std price: {std_price}")
+        # print(f"Market pressure: {market_pressure}")
+        # print(f"Weight: {weight}")
+        # print("Acceptable price : " + str(acceptable_price))
+        # print("Buy Order depth : " + str(len(order_depth.buy_orders)) + ", Sell order depth : " + str(len(order_depth.sell_orders)))
+
+        # if len(order_depth.sell_orders) != 0:
+        #     best_ask_amount = order_depth.sell_orders[min(list(order_depth.sell_orders.keys()))]
+        #     if int(best_ask) < acceptable_price:
+        #         print("BUY", str(-best_ask_amount) + "x", best_ask)
+        #         orders.append(Order(product, best_ask, -best_ask_amount))
+
+        # if len(order_depth.buy_orders) != 0:
+        #     best_bid_amount = order_depth.buy_orders[max(list(order_depth.buy_orders.keys()))]
+        #     if int(best_bid) > acceptable_price:
+        #         print("SELL", str(best_bid_amount) + "x", best_bid)
+        #         orders.append(Order(product, best_bid, -best_bid_amount))
+
+        result["EMERALDS"] = orders_e
+        result["TOMATOES"] = orders_t
     
         # String value holding Trader state data required. 
         # It will be delivered as TradingState.traderData on next execution.
